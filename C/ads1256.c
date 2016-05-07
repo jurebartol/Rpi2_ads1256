@@ -17,6 +17,7 @@
 		receiving bytes over SPI)
 		2. driver for ads1256 chip (controlling multiplexer, PGA, filter)
 		3. "high level" data acquisition functions
+		4. example of usage
 */
 
 // Build example: gcc ads1256.c -std=c99 -o ads1256 -lbcm2835
@@ -308,7 +309,6 @@ uint8_t writeCMD(uint8_t command)
 // Set the internal buffer (True - enable, False - disable).
 uint8_t setBuffer(bool val)
 {
-	//00000010
 	CS_0();
 	send8bit(CMD_WREG | REG_STATUS);
 	send8bit((0 << 3) | (1 << 2) | (val << 1));
@@ -362,11 +362,12 @@ int32_t readData(void)
 
 	CS_0();
 	send8bit(CMD_RDATA);
-	delayus(7); // min delayus: t6 = 50 * 1/freq.clkin = 50 * 1 / 7,68 Mhz = 6.5 micro sec
+	delayus(7); // min delay: t6 = 50 * 1/freq.clkin = 50 * 1 / 7,68 Mhz = 6.5 micro sec
 
 	buffer[0] = recieve8bit();
 	buffer[1] = recieve8bit();
-	buffer[2] = recieve8bit(); //DRDY goes back high here
+	buffer[2] = recieve8bit();
+	// DRDY goes high here
 
 	// construct 24 bit value
 	read =  ((uint32_t)buffer[0] << 16) & 0x00FF0000;
@@ -433,16 +434,72 @@ void scanDIFFChannels(uint8_t positiveChs[], uint8_t negativeChs[], uint8_t numO
 
 // Continuously acquire analog data from one single-ended analog input.
 // Allows sampling of one single-ended input channel up to 30,000 SPS.
-void scanSEChannelsContinuous(uint8_t channel, uint32_t *values)
+void scanSEChannelsContinuous(uint8_t channel, uint32_t numOfMeasure, uint32_t *values)
 {
+	uint8_t buffer[3];
+	uint32_t read = 0;
 
+	CS_0();
+	//setSEChannel(channel);
+	waitDRDY();
+	writeCMD(CMD_RDATAC);
+	delayus(10); // min delay: t6 = 50 * 1/7.68 MHz = 6.5 microseconds
+
+	for (int i = 0; i < numOfMeasure; ++i)
+	{
+		delayus(10);
+		waitDRDY();
+		buffer[0] = recieve8bit();
+		buffer[1] = recieve8bit();
+		buffer[2] = recieve8bit();
+
+		// construct 24 bit value
+		read  = ((uint32_t)buffer[0] << 16) & 0x00FF0000;
+		read |= ((uint32_t)buffer[1] << 8);
+		read |= buffer[2];
+		if (read & 0x800000){
+			read |= 0xFF000000;
+		}
+		values[i] = read;
+	}
+	waitDRDY();
+	writeCMD(CMD_SDATAC); // Stop read data continuous.
+	CS_1();
 }
 
 // Continuously acquire analog data from one differential analog input.
 // Allows sampling of one differential input channel up to 30,000 SPS.
-void scanDIFFChannelsContinuous(uint8_t positiveCh, uint8_t negativeCh, uint32_t *values)
+void scanDIFFChannelsContinuous(uint8_t positiveCh, uint8_t negativeCh, uint32_t numOfMeasure, uint32_t *values)
 {
+	uint8_t buffer[3];
+	uint32_t read = 0;
 
+	CS_0();
+	waitDRDY();
+	setDIFFChannel(positiveCh, negativeCh);
+	writeCMD(CMD_RDATAC);
+	delayus(10); // min delay: t6 = 50 * 1/7.68 MHz = 6.5 microseconds
+
+	for (int i = 0; i < numOfMeasure; ++i)
+	{
+		buffer[0] = recieve8bit();
+		buffer[1] = recieve8bit();
+		buffer[2] = recieve8bit();
+
+		// construct 24 bit value
+		read  = ((uint32_t)buffer[0] << 16) & 0x00FF0000;
+		read |= ((uint32_t)buffer[1] << 8);
+		read |= buffer[2];
+		if (read & 0x800000){
+			read |= 0xFF000000;
+		}
+		values[i] = read;
+		waitDRDY();
+		delayus(10);
+	}
+	waitDRDY();
+	writeCMD(CMD_SDATAC); // Stop read data continuous.
+	CS_1();
 }
 
 /*
@@ -450,6 +507,7 @@ void scanDIFFChannelsContinuous(uint8_t positiveCh, uint8_t negativeCh, uint32_t
 	** PART 3 - data acquisition **
 	*******************************
 	Functions:
+		- write to file
 		- acquisition with flushing to file (longer periods)
 		- acquisition without flushing to file (short time)
 */
@@ -458,66 +516,102 @@ void scanDIFFChannelsContinuous(uint8_t positiveCh, uint8_t negativeCh, uint32_t
 
 
 
+/*
+	********************************
+	** PART 4 - Examples of usage **
+	********************************
+*/
 
-
-// Example of a simple program.	
 int main(int argc, char *argv[]){
-	if (argc < 2)
-	{
+	if (argc < 2){
 		printf("Usage: %s <number of measurements>\n", argv[0]);
+		return 1;
 	}
 
 	// Initialization and AD configuration
 	if (!initializeSPI()) return 1;
-	setBuffer(False);
+	setBuffer(True);
 	setPGA(PGA_GAIN1);
 	setDataRate(DRATE_30000);
 
+	/////////////////////////////////
+	// Single-ended input channels //
+	/////////////////////////////////
 
-	//Single-ended input channels
 	clock_t start_SE, end_SE;
-	int num_ch_SE = 4;
+	int num_ch_SE = 8;
 	//int num_ch = 1;
 	int num_measure_SE = atoi(argv[1]);
 	uint32_t values_SE [num_ch_SE];
-	uint8_t  channels_SE [4] = {AIN0, AIN1, AIN2, AIN3};
+	uint8_t  channels_SE [8] = {AIN0, AIN1, AIN2, AIN3, AIN4, AIN5, AIN6, AIN7};
 	//uint8_t channels [1] = {AIN0};
 	start_SE = clock();
-	for (int i = 0; i < num_measure_SE; ++i)
-	{
+	for (int i = 0; i < num_measure_SE; ++i){
 		scanSEChannels(channels_SE, num_ch_SE, values_SE);
-		printf("%i ", i+1);
+		printf("%i ||", i+1);
 		for (int ch = 0; ch < num_ch_SE; ++ch)
 		{
-			printf("%i ", values_SE[ch]);
+			printf(" %fV ||", (double)values_SE[ch]/10000/167);
 		}
 		printf("\n");
 	}
 	end_SE = clock();
-	
 
-	//Differential input channels
+	/////////////////////////////////
+	// Differential input channels //
+	/////////////////////////////////
+
 	clock_t start_DIFF, end_DIFF;
-	int num_ch_DIFF = 2;
+	int num_ch_DIFF = 4;
 	int num_measure_DIFF = atoi(argv[1]);
 	uint32_t values_DIFF [num_ch_DIFF];
-	uint8_t  posChannels [2] = {AIN0, AIN2};
-	uint8_t  negChannels [2] = {AIN1, AIN3};
+	uint8_t  posChannels [4] = {AIN0, AIN2, AIN4, AIN6};
+	uint8_t  negChannels [4] = {AIN1, AIN3, AIN5, AIN7};
 
 	start_DIFF = clock();
-	for (int i = 0; i < num_measure_DIFF; ++i)
-	{
+	for (int i = 0; i < num_measure_DIFF; ++i){
 		scanDIFFChannels(posChannels, negChannels, num_ch_DIFF, values_DIFF);
-		printf("%i ", i+1);
+		printf("%i ||", i+1);
 		for (int ch = 0; ch < num_ch_DIFF; ++ch)
 		{
-			printf("%i ", values_DIFF[ch]);
+			printf(" %fV ||", (double)values_DIFF[ch]/10000/167);
 		}
 		printf("\n");
 	}
 	end_DIFF = clock();
-	printf("Time for %i single-ended measurements on %i channels is %d microseconds.\n", num_measure_SE, num_ch_SE, end_SE - start_SE);
-	printf("Time for %i differential measurements on %i channels is %d microseconds.\n", num_measure_DIFF, num_ch_DIFF, end_DIFF - start_DIFF);
+
+	/////////////////////////////////////////
+	// Single-ended input, continuous mode //
+	/////////////////////////////////////////
+
+	clock_t start_SE_CONT, end_SE_CONT;
+	int num_measure_SE_CONT = atoi(argv[1]);
+	uint32_t values_SE_CONT [num_measure_SE_CONT];
+	start_SE_CONT = clock();
+	scanSEChannelsContinuous(AIN0, num_measure_SE_CONT, values_SE_CONT);
+	end_SE_CONT = clock();
+	for (int i = 0; i < num_measure_SE_CONT; ++i){
+		printf("%i || %fV\n", i+1, (float)values_SE_CONT[i]/167*1e-4);
+	}
+
+	/////////////////////////////////////////
+	// Differential input, continuous mode //
+	/////////////////////////////////////////
+
+	clock_t start_DIFF_CONT, end_DIFF_CONT;
+	int num_measure_DIFF_CONT = atoi(argv[1]);
+	uint32_t values_DIFF_CONT [num_measure_DIFF_CONT];
+	start_DIFF_CONT = clock();
+	scanDIFFChannelsContinuous(AIN0, AIN1, num_measure_DIFF_CONT, values_DIFF_CONT);
+	end_DIFF_CONT = clock();
+	for (int i = 0; i < num_measure_DIFF_CONT; ++i){
+		printf("%i || %fV\n", i+1, (float)values_DIFF_CONT[i]/167*1e-4);
+	}
+
+	printf("Time for %i single-ended measurements on %i channels is %d microseconds (%5.1f SPS/channel).\n", num_measure_SE, num_ch_SE, end_SE - start_SE, (double)(num_measure_SE)/(end_SE - start_SE)*1e6);
+	printf("Time for %i differential measurements on %i channels is %d microseconds (%5.1f SPS/channel).\n", num_measure_DIFF, num_ch_DIFF, end_DIFF - start_DIFF, (double)num_measure_DIFF/(end_DIFF - start_DIFF)*1e6);
+	printf("Time for %i single-ended measurements in continuous mode is %d microseconds (%5.1f SPS).\n", num_measure_SE_CONT, end_SE_CONT - start_SE_CONT, (double)num_measure_SE_CONT/(end_SE_CONT - start_SE_CONT)*1e6);
+	printf("Time for %i differential measurements in continuous mode is %d microseconds (%5.1f SPS).\n", num_measure_DIFF_CONT, end_DIFF_CONT - start_DIFF_CONT, (double)num_measure_DIFF_CONT/(end_DIFF_CONT - start_DIFF_CONT)*1e6);
 
 
 	endSPI();
