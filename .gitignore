@@ -1,1 +1,7 @@
+### C
 ads1256
+
+### Python
+*.pyc
+_bcm2835.py
+__init__.py
