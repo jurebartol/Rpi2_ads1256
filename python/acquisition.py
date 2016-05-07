@@ -15,9 +15,6 @@
 
 from ads1256 import *
 import time
-import matplotlib
-matplotlib.use('TkAgg')
-import matplotlib.pyplot as plt
 
 
 def GetSample(channel):
@@ -67,13 +64,30 @@ def ConfigureFile(fileName):
 	
 	f.close()
 
+def Convert2Volt(values):
+	for val in values:
+		val *= 10e-4 / 167
+
+
+
+""" 
+#Example program that measures values on all 8 channels 
+#in single-ended input mode for one second.
+
 ADInitialize()
 t = time.time()
 GetData([0,1,2,3,4,5,6,7],1)
 print "Elapsed time is: %fs." % (time.time() - t)
 ADEnd()
 
-""" **Plotting**
+"""
+
+""" 
+#Example program with plotting
+
+import matplotlib
+matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
 
 ADInitialize()
 var1 = [0]*6000
@@ -86,8 +100,8 @@ for x in xrange(0,6000):
 	var2[x] = ReadData()
 print time.time() - time0
 
-plt.plot(convert2volt(var1), label="ch1")
-plt.plot(convert2volt(var2), label="ch2")
+plt.plot(Convert2Volt(var1), label="ch1")
+plt.plot(Convert2Volt(var2), label="ch2")
 plt.legend()
 plt.show()
 
