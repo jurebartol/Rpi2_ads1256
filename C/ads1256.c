@@ -19,7 +19,7 @@
 		3. "high level" data acquisition functions
 */
 
-// Build example: gcc new_ads1256.c -std=c99 -o ads1256 -lbcm2835
+// Build example: gcc ads1256.c -std=c99 -o ads1256 -lbcm2835
 
 #include <stdio.h>
 #include <time.h>
