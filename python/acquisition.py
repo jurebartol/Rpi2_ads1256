@@ -3,14 +3,9 @@
 	Date:   16/04/2016
 
 	TO-DO:
-	- (optional) live plotting
 	- acquisition.py: 
 		- use pickle instead of write
 		- ConfigureFile() -> convert every value to volt
-		-(DONE) write time to file too
-	- ads1256.py:
-		- Add comments + organize
-	- gui
 """
 
 from ads1256 import *
@@ -65,6 +60,7 @@ def ConfigureFile(fileName):
 	f.close()
 
 def Convert2Volt(values):
+	""" Convert list of values to volts. """
 	for val in values:
 		val *= 10e-4 / 167
 

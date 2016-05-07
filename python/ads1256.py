@@ -1,37 +1,26 @@
 """
 	Author: Jure Bartol
 	Date:   16/04/2016
-
-	TO-DO:
-	- (optional)live plotting
-	- acquisition.py: 
-		- use pickle instead of write
-		- ConfigureFile() -> convert every value to volt
-		-(DONE) write time to file too
-	- ads1256.py:
-		- Add comments + organize
-	- gui
 """
 
 from _bcm2835 import *
 
-AD30000SPS = 0
-AD15000SPS = 1
-AD7500SPS = 2
-AD3750SPS = 3
-AD2000SPS = 4
-AD1000SPS = 5
-AD500SPS = 6
-AD100SPS = 7
-AD60SPS = 8
-AD50SPS = 9
-AD30SPS = 10
-AD25SPS = 11
-AD15SPS = 12
-AD10SPS = 13
-AD5SPS = 14
-AD2d5SPS = 15
-DRATE_MAX = 16
+AD30000SPS = 0xF0
+AD15000SPS = 0xF0
+AD7500SPS  = 0xD0
+AD3750SPS  = 0xC0
+AD2000SPS  = 0xB0
+AD1000SPS  = 0xA1
+AD500SPS   = 0x92
+AD100SPS   = 0x82
+AD60SPS    = 0x72
+AD50SPS    = 0x63
+AD30SPS    = 0x53
+AD25SPS    = 0x43
+AD15SPS    = 0x33
+AD10SPS    = 0x20
+AD5SPS     = 0x13
+AD2d5SPS   = 0x03
 
 GAIN_1 = 0 
 GAIN_2 = 1
@@ -41,37 +30,36 @@ GAIN_16 = 4
 GAIN_32 = 5
 GAIN_64 = 6
 
-#/*Register address, followed by reset the default values */
-REG_STATUS = 0	 #// x1H
-REG_MUX    = 1  #// 01H
-REG_ADCON  = 2  #// 20H
-REG_DRATE  = 3  #// F0H
-REG_IO     = 4  #// E0H
-REG_OFC0   = 5  #// xxH
-REG_OFC1   = 6  #// xxH
-REG_OFC2   = 7  #// xxH
-REG_FSC0   = 8  #// xxH
-REG_FSC1   = 9  #// xxH
-REG_FSC2   = 10 #// xxH
+REG_STATUS = 0
+REG_MUX    = 1
+REG_ADCON  = 2
+REG_DRATE  = 3
+REG_IO     = 4
+REG_OFC0   = 5
+REG_OFC1   = 6
+REG_OFC2   = 7
+REG_FSC0   = 8
+REG_FSC1   = 9
+REG_FSC2   = 10
 
-CMD_WAKEUP  = 0x00	#// Completes SYNC and Exits Standby Mode 0000  0000 (00h)
-CMD_RDATA   = 0x01 #// Read Data 0000  0001 (01h)
-CMD_RDATAC  = 0x03 #// Read Data Continuously 0000   0011 (03h)
-CMD_SDATAC  = 0x0F #// Stop Read Data Continuously 0000   1111 (0Fh)
-CMD_RREG    = 0x10 #// Read from REG rrr 0001 rrrr (1xh)
-CMD_WREG    = 0x50 #// Write to REG rrr 0101 rrrr (5xh)
-CMD_SELFCAL = 0xF0 #// Offset and Gain Self-Calibration 1111    0000 (F0h)
-CMD_SELFOCAL= 0xF1 #// Offset Self-Calibration 1111    0001 (F1h)
-CMD_SELFGCAL= 0xF2 #// Gain Self-Calibration 1111    0010 (F2h)
-CMD_SYSOCAL = 0xF3 #// System Offset Calibration 1111   0011 (F3h)
-CMD_SYSGCAL = 0xF4 #// System Gain Calibration 1111    0100 (F4h)
-CMD_SYNC    = 0xFC #// Synchronize the A/D Conversion 1111   1100 (FCh)
-CMD_STANDBY = 0xFD #// Begin Standby Mode 1111   1101 (FDh)
-CMD_RESET   = 0xFE #// Reset to Power-Up Values 1111   1110 (FEh)
+CMD_WAKEUP  = 0x00
+CMD_RDATA   = 0x01
+CMD_RDATAC  = 0x03
+CMD_SDATAC  = 0x0F
+CMD_RREG    = 0x10
+CMD_WREG    = 0x50
+CMD_SELFCAL = 0xF0
+CMD_SELFOCAL= 0xF1
+CMD_SELFGCAL= 0xF2
+CMD_SYSOCAL = 0xF3
+CMD_SYSGCAL = 0xF4
+CMD_SYNC    = 0xFC
+CMD_STANDBY = 0xFD
+CMD_RESET   = 0xFE
 
-DRDY  = RPI_GPIO_P1_11 # = 17 P0
-RST   = RPI_GPIO_P1_12 #  = 18 P1
-SPICS = RPI_GPIO_P1_15 #= 22 P3
+DRDY  = RPI_GPIO_P1_11
+RST   = RPI_GPIO_P1_12
+SPICS = RPI_GPIO_P1_15
 
 def CS_1():
 	return bcm2835_gpio_write(SPICS, HIGH)
@@ -116,12 +104,10 @@ def delayDATA():
 	bsp_delayUS(10)
 	
 def CfgADC(gain, data_rate):
-	s_tabDataRate = (0xF0, 0xE0, 0xD0, 0xC0, 0xB0, 0xA1, 0x92, 0x82, 0x72, 0x63, 
-	0x53, 0x43, 0x33, 0x20, 0x13, 0x03)
 	buf1 = ((0 << 3) | (1 << 2) | (0 << 1))
 	buf2 = 0x08
 	buf3 = ((0 << 5) | (0 << 3) | (gain << 0))
-	buf4 = s_tabDataRate[data_rate]
+	buf4 = data_rate
 	CS_0()
 	Send8Bit(CMD_WREG | 0)
 	Send8Bit(0x03)
