@@ -1,7 +1,14 @@
-#include <stdio.h>
-#include <time.h>
-#include <stdlib.h>
-#include <bcm2835.h>  
+/*
+	Author: Jure Bartol
+	Date: 07.05.2016
+	TO-DO:
+		- divide into files
+		- scanSEChannelsContinuous()
+		- scanDIFFChannelsContinuous()
+		- conversion into volts
+		- part 3: "high level" data acquisition functions
+		- python wrapper
+*/
 
 /*
 	Structure:
@@ -13,6 +20,11 @@
 */
 
 // Build example: gcc new_ads1256.c -std=c99 -o ads1256 -lbcm2835
+
+#include <stdio.h>
+#include <time.h>
+#include <stdlib.h>
+#include <bcm2835.h>  
 
 /*
 	***************************
@@ -441,6 +453,11 @@ void scanDIFFChannelsContinuous(uint8_t positiveCh, uint8_t negativeCh, uint32_t
 		- acquisition with flushing to file (longer periods)
 		- acquisition without flushing to file (short time)
 */
+
+
+
+
+
 
 
 // Example of a simple program.	
