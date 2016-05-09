@@ -2,12 +2,12 @@
 	Author: Jure Bartol
 	Date: 07.05.2016
 	TO-DO:
-		- divide into files
+		- use sizeof() instead of manual input of array sizes
+		- divide into files -> include make file
 		- scanSEChannelsContinuous()
 		- scanDIFFChannelsContinuous()
-		- conversion into volts
 		- part 3: "high level" data acquisition functions
-		- python wrapper
+		- (optional) python wrapper
 */
 
 /*
@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <bcm2835.h>  
 
 /*
@@ -503,16 +504,101 @@ void scanDIFFChannelsContinuous(uint8_t positiveCh, uint8_t negativeCh, uint32_t
 }
 
 /*
-	*******************************
-	** PART 3 - data acquisition **
-	*******************************
+	********************************************
+	** PART 3 - "high-level" data acquisition **
+	********************************************
 	Functions:
-		- write to file
-		- acquisition with flushing to file (longer periods)
-		- acquisition without flushing to file (short time)
+		- writeToFile()
+		- getValMultiChSE()
+		- getValMultiChDIFF()
+		- getValSingleChSE()
+		- getValSingleChDIFF()
+
 */
 
+	// Write array of values to file. To avoid openning the file in the middle of a data acquisition,
+	// we need to open it before calling this function and assign it to null pointer. It also needs to be closed manually.
+	void writeValToFile(FILE *file, uint32_t *values[], uint8_t numOfValues, uint8_t numOfChannels, char *pathWithFileName[])
+	{
+		if (NULL)
+		{
+			file = fopen(pathWithFileName, "a");
+		}
+		for (int i = 0; i < numOfValues/numOfChannels; ++i)
+		{
+			fprintf(file, "%i  ", i);
+			for (int ch = 0; i < numOfChannels; ++ch)
+			{
+				fprintf(file, "%f ", (double)values[i*numOfChannels + ch]/1670000);
+			}
+			fprintf(file, "\n");
+		}
+	}		
 
+	//SE - input mux
+	void getValMultiChSE(uint32_t numOfMeasure, uint32_t *values[], uint8_t *channels[], uint8_t numOfChannels, bool flushToFile, char *path[])
+	{
+		clock_t startTime, endTime;
+		uint32_t tempValues [numOfChannels];
+		startTime = clock();
+		for (int i = 0; i < numOfMeasure; ++i)
+		{
+			//scanSEChannels(channels, numOfChannels, tempValues); //try changing tempValues with values[numOfChannels*i]
+			scanSEChannels(channels, numOfChannels, values[numOfChannels*i]);
+			printf("%i ||", i+1);
+			for (int ch = 0; ch < numOfChannels; ++ch)
+			{
+				//values[i*numOfChannels + ch] = tempValues[ch];  // GET RID OF THIS COPYING! 
+				printf(" %fV ||", (double)values[ch]/10000/167);
+			}
+			printf("\n");
+			if (flushToFile && (i == sizeof(values)/32))
+			{
+				FILE *file;
+				file = writeValToFile(values, numOfMeasure, numOfChannels, path);
+				i = 0;
+			}
+		}
+		endTime = clock();
+		printf("Time for %i single-ended measurements on %i channels is %d microseconds (%5.1f SPS/channel).\n", numOfMeasure, numOfChannels, endTime - startTime, (double)(numOfMeasure)/(endTime - startTime)*1e6);
+	}
+
+	//DIFF - input mux
+	void getValMultiChDIFF(uint32_t numOfMeasure, uint32_t *values[], uint8_t *posChs[], uint8_t *negChs[], uint8_t numOfChannels, bool flushToFile, char *path[])
+	{
+		clock_t startTime, endTime;
+		startTime = clock();
+		for (int i = 0; i < numOfMeasure; ++i)
+		{
+			scanSEChannels(channels, numOfChannels, values[numOfChannels*i]);
+			printf("%i ||", i+1);
+			for (int ch = 0; ch < numOfChannels; ++ch)
+			{
+				printf(" %fV ||", (double)values[ch]/10000/167);
+			}
+			printf("\n");
+			if (flushToFile && (i == sizeof(values)/32))
+			{
+				FILE *file;
+				file = writeValToFile(values, numOfMeasure, numOfChannels, path);
+				i = 0;
+			}
+		}
+		endTime = clock();
+		printf("Time for %i single-ended measurements on %i channels is %d microseconds (%5.1f SPS/channel).\n", numOfMeasure, numOfChannels, endTime - startTime, (double)(numOfMeasure)/(endTime - startTime)*1e6);
+	}
+
+	//SE - continuous
+	void getValSingleChSE(uint32_t numOfMeasure, uint32_t **values, uint8_t **channels, uint8_t numOfChannels, bool flushToFile)
+	{
+
+	}
+
+	//DIFF - continuous
+	void getValSingleChDIFF(uint32_t numOfMeasure, uint32_t **values, uint8_t **posChs, uint8_t **negChs, uint8_t numOfChannels, bool flushToFile)
+	{
+
+	}
 
 
 
@@ -537,6 +623,8 @@ int main(int argc, char *argv[]){
 	/////////////////////////////////
 	// Single-ended input channels //
 	/////////////////////////////////
+
+	// num of measurements, vector of channels, 
 
 	clock_t start_SE, end_SE;
 	int num_ch_SE = 8;
