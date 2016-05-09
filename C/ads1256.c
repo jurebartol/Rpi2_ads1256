@@ -3,11 +3,25 @@
 	Date: 07.05.2016
 	TO-DO:
 		- use sizeof() instead of manual input of array sizes
-		- divide into files -> include make file
+		- divide into files
 		- scanSEChannelsContinuous()
 		- scanDIFFChannelsContinuous()
 		- part 3: "high level" data acquisition functions
 		- (optional) python wrapper
+
+-> Rpi2_ads1256
+	-> C
+		-> RPi_AD.h
+		-> example.c
+		-> makefile.make
+		-> src
+			-> enum.c
+			-> enum.h
+			-> spi.c
+			-> spi.h
+			-> ads1256.c
+			-> ads1256.h
+
 */
 
 /*
@@ -25,8 +39,8 @@
 #include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <bcm2835.h>  
+//#include <ads1256.h>
 
 /*
 	***************************
@@ -38,9 +52,10 @@
 		- REG   - register control adresses
 		- CMD   - commands for controlling operation of ADS1256
 		- AIN   - input analog channels
+		- bool  - boolean values
 */
 
-// Set unsigned integer types.
+// Set custom data types that are 8, 16 and 32 bits long.
 #define uint8_t  unsigned char  	// 1 byte
 #define uint16_t unsigned short 	// 2 bytes
 #define uint32_t unsigned long  	// 4 bytes
@@ -270,8 +285,8 @@ void endSPI()
 		- getValDIFFChannel()
 		- scanSEChannels()
 		- scanDIFFChannels()
-		- scanSEChannelsContinuous()
-		- scanDIFFChannelsContinuous()
+		- scanSEChannelContinuous()
+		- scanDIFFChannelContinuous()
 */
 
 // Read 1 byte from register address registerID. 
@@ -435,20 +450,22 @@ void scanDIFFChannels(uint8_t positiveChs[], uint8_t negativeChs[], uint8_t numO
 
 // Continuously acquire analog data from one single-ended analog input.
 // Allows sampling of one single-ended input channel up to 30,000 SPS.
-void scanSEChannelsContinuous(uint8_t channel, uint32_t numOfMeasure, uint32_t *values)
+void scanSEChannelContinuous(uint8_t channel, uint32_t numOfMeasure, uint32_t *values)
 {
 	uint8_t buffer[3];
 	uint32_t read = 0;
+	uint8_t del = 8;
+
+	setSEChannel(channel);
+	delayus(del);
 
 	CS_0();
-	//setSEChannel(channel);
 	waitDRDY();
-	writeCMD(CMD_RDATAC);
-	delayus(10); // min delay: t6 = 50 * 1/7.68 MHz = 6.5 microseconds
+	send8bit(CMD_RDATAC);
+	delayus(del); // min delay: t6 = 50 * 1/7.68 MHz = 6.5 microseconds
 
 	for (int i = 0; i < numOfMeasure; ++i)
 	{
-		delayus(10);
 		waitDRDY();
 		buffer[0] = recieve8bit();
 		buffer[1] = recieve8bit();
@@ -462,27 +479,32 @@ void scanSEChannelsContinuous(uint8_t channel, uint32_t numOfMeasure, uint32_t *
 			read |= 0xFF000000;
 		}
 		values[i] = read;
+		delayus(del);
 	}
 	waitDRDY();
-	writeCMD(CMD_SDATAC); // Stop read data continuous.
+	send8bit(CMD_SDATAC); // Stop read data continuous.
 	CS_1();
 }
 
 // Continuously acquire analog data from one differential analog input.
 // Allows sampling of one differential input channel up to 30,000 SPS.
-void scanDIFFChannelsContinuous(uint8_t positiveCh, uint8_t negativeCh, uint32_t numOfMeasure, uint32_t *values)
+void scanDIFFChannelContinuous(uint8_t positiveCh, uint8_t negativeCh, uint32_t numOfMeasure, uint32_t *values)
 {
 	uint8_t buffer[3];
 	uint32_t read = 0;
+	uint8_t del = 8;
+
+	setDIFFChannel(positiveCh, negativeCh);
+	delayus(del);
 
 	CS_0();
 	waitDRDY();
-	setDIFFChannel(positiveCh, negativeCh);
-	writeCMD(CMD_RDATAC);
-	delayus(10); // min delay: t6 = 50 * 1/7.68 MHz = 6.5 microseconds
+	send8bit(CMD_RDATAC);
+	delayus(del); // min delay: t6 = 50 * 1/7.68 MHz = 6.5 microseconds
 
 	for (int i = 0; i < numOfMeasure; ++i)
 	{
+		waitDRDY();
 		buffer[0] = recieve8bit();
 		buffer[1] = recieve8bit();
 		buffer[2] = recieve8bit();
@@ -495,11 +517,10 @@ void scanDIFFChannelsContinuous(uint8_t positiveCh, uint8_t negativeCh, uint32_t
 			read |= 0xFF000000;
 		}
 		values[i] = read;
-		waitDRDY();
-		delayus(10);
+		delayus(del);
 	}
 	waitDRDY();
-	writeCMD(CMD_SDATAC); // Stop read data continuous.
+	send8bit(CMD_SDATAC); // Stop read data continuous.
 	CS_1();
 }
 
@@ -509,97 +530,103 @@ void scanDIFFChannelsContinuous(uint8_t positiveCh, uint8_t negativeCh, uint32_t
 	********************************************
 	Functions:
 		- writeToFile()
-		- getValMultiChSE()
-		- getValMultiChDIFF()
-		- getValSingleChSE()
-		- getValSingleChDIFF()
+		- getValsMultiChSE()
+		- getValsMultiChDIFF()
+		- getValsSingleChSE()
+		- getValsSingleChDIFF()
 
 */
-
-	// Write array of values to file. To avoid openning the file in the middle of a data acquisition,
-	// we need to open it before calling this function and assign it to null pointer. It also needs to be closed manually.
-	void writeValToFile(FILE *file, uint32_t *values[], uint8_t numOfValues, uint8_t numOfChannels, char *pathWithFileName[])
+/*
+// Write array of values to file. To avoid openning the file in the middle of a data acquisition,
+// we need to open it before calling this function and assign it to null pointer. It also needs to be closed manually.
+void writeValsToFile(FILE *file, uint32_t *values[], uint8_t numOfValues, uint8_t numOfChannels, char *pathWithFileName[])
+{
+	if (NULL)
 	{
-		if (NULL)
-		{
-			file = fopen(pathWithFileName, "a");
-		}
-		for (int i = 0; i < numOfValues/numOfChannels; ++i)
-		{
-			fprintf(file, "%i  ", i);
-			for (int ch = 0; i < numOfChannels; ++ch)
-			{
-				fprintf(file, "%f ", (double)values[i*numOfChannels + ch]/1670000);
-			}
-			fprintf(file, "\n");
-		}
-	}		
-
-	//SE - input mux
-	void getValMultiChSE(uint32_t numOfMeasure, uint32_t *values[], uint8_t *channels[], uint8_t numOfChannels, bool flushToFile, char *path[])
-	{
-		clock_t startTime, endTime;
-		uint32_t tempValues [numOfChannels];
-		startTime = clock();
-		for (int i = 0; i < numOfMeasure; ++i)
-		{
-			//scanSEChannels(channels, numOfChannels, tempValues); //try changing tempValues with values[numOfChannels*i]
-			scanSEChannels(channels, numOfChannels, values[numOfChannels*i]);
-			printf("%i ||", i+1);
-			for (int ch = 0; ch < numOfChannels; ++ch)
-			{
-				//values[i*numOfChannels + ch] = tempValues[ch];  // GET RID OF THIS COPYING! 
-				printf(" %fV ||", (double)values[ch]/10000/167);
-			}
-			printf("\n");
-			if (flushToFile && (i == sizeof(values)/32))
-			{
-				FILE *file;
-				file = writeValToFile(values, numOfMeasure, numOfChannels, path);
-				i = 0;
-			}
-		}
-		endTime = clock();
-		printf("Time for %i single-ended measurements on %i channels is %d microseconds (%5.1f SPS/channel).\n", numOfMeasure, numOfChannels, endTime - startTime, (double)(numOfMeasure)/(endTime - startTime)*1e6);
+		file = fopen(pathWithFileName, "a");
 	}
-
-	//DIFF - input mux
-	void getValMultiChDIFF(uint32_t numOfMeasure, uint32_t *values[], uint8_t *posChs[], uint8_t *negChs[], uint8_t numOfChannels, bool flushToFile, char *path[])
+	for (int i = 0; i < numOfValues/numOfChannels; ++i)
 	{
-		clock_t startTime, endTime;
-		startTime = clock();
-		for (int i = 0; i < numOfMeasure; ++i)
+		fprintf(file, "%i  ", i);
+		for (int ch = 0; i < numOfChannels; ++ch)
 		{
-			scanSEChannels(channels, numOfChannels, values[numOfChannels*i]);
-			printf("%i ||", i+1);
-			for (int ch = 0; ch < numOfChannels; ++ch)
-			{
-				printf(" %fV ||", (double)values[ch]/10000/167);
-			}
-			printf("\n");
-			if (flushToFile && (i == sizeof(values)/32))
-			{
-				FILE *file;
-				file = writeValToFile(values, numOfMeasure, numOfChannels, path);
-				i = 0;
-			}
+			fprintf(file, "%f ", (double)values[i*numOfChannels + ch]/1670000);
 		}
-		endTime = clock();
-		printf("Time for %i single-ended measurements on %i channels is %d microseconds (%5.1f SPS/channel).\n", numOfMeasure, numOfChannels, endTime - startTime, (double)(numOfMeasure)/(endTime - startTime)*1e6);
+		fprintf(file, "\n");
 	}
+}		
 
-	//SE - continuous
-	void getValSingleChSE(uint32_t numOfMeasure, uint32_t **values, uint8_t **channels, uint8_t numOfChannels, bool flushToFile)
+// Get data from multiple channels in single-ended input mode, either with or without flushing data 
+// to file (depends on how much values you want to store).
+void getValsMultiChSE(uint32_t numOfMeasure, uint32_t *values[], uint8_t *channels[], uint8_t numOfChannels, bool flushToFile, char *path[])
+{
+	clock_t startTime, endTime;
+	uint32_t tempValues [numOfChannels];
+	startTime = clock();
+	for (int i = 0; i < numOfMeasure; ++i)
 	{
-
+		//scanSEChannels(channels, numOfChannels, tempValues); //try changing tempValues with values[numOfChannels*i]
+		scanSEChannels(channels, numOfChannels, values[numOfChannels*i]);
+		printf("%i ||", i+1);
+		for (int ch = 0; ch < numOfChannels; ++ch)
+		{
+			//values[i*numOfChannels + ch] = tempValues[ch];  // GET RID OF THIS COPYING! 
+			printf(" %fV ||", (double)values[ch]/10000/167);
+		}
+		printf("\n");
+		if (flushToFile && (i == sizeof(values)/32))
+		{
+			FILE *file;
+			file = writeValToFile(values, numOfMeasure, numOfChannels, path);
+			i = 0;
+		}
 	}
+	endTime = clock();
+	printf("Time for %i single-ended measurements on %i channels is %d microseconds (%5.1f SPS/channel).\n", numOfMeasure, numOfChannels, endTime - startTime, (double)(numOfMeasure)/(endTime - startTime)*1e6);
+}
 
-	//DIFF - continuous
-	void getValSingleChDIFF(uint32_t numOfMeasure, uint32_t **values, uint8_t **posChs, uint8_t **negChs, uint8_t numOfChannels, bool flushToFile)
+// Get data from multiple channels in differential input mode, either with or without flushing data 
+// to file (depends on how much values you want to store).
+void getValsMultiChDIFF(uint32_t numOfMeasure, uint32_t *values[], uint8_t *posChs[], uint8_t *negChs[], uint8_t numOfChannels, bool flushToFile, char *path[])
+{
+	clock_t startTime, endTime;
+	startTime = clock();
+	for (int i = 0; i < numOfMeasure; ++i)
 	{
-
+		scanSEChannels(channels, numOfChannels, values[numOfChannels*i]);
+		printf("%i ||", i+1);
+		for (int ch = 0; ch < numOfChannels; ++ch)
+		{
+			printf(" %fV ||", (double)values[ch]/10000/167);
+		}
+		printf("\n");
+		if (flushToFile && (i == sizeof(values)/32))
+		{
+			FILE *file;
+			file = writeValToFile(values, numOfMeasure, numOfChannels, path);
+			i = 0;
+		}
 	}
+	endTime = clock();
+	printf("Time for %i single-ended measurements on %i channels is %d microseconds (%5.1f SPS/channel).\n", numOfMeasure, numOfChannels, endTime - startTime, (double)(numOfMeasure)/(endTime - startTime)*1e6);
+}
 
+// Get data from a single channel in single-ended input mode, either with or without flushing data 
+// to file (depends on how much values you want to store).
+void getValsSingleChSE(uint32_t numOfMeasure, uint32_t *values[], uint8_t channel, bool flushToFile, char *path[])
+{
+	scanSEChannelContinuous(uint8_t channel, uint32_t numOfMeasure, uint32_t *values)
+
+
+}
+
+// Get data from a single channel in differential input mode, either with or without flushing data 
+// to file (depends on how much values you want to store).
+void getValsSingleChDIFF(uint32_t numOfMeasure, uint32_t **values, uint8_t posCh, uint8_t negCh, uint8_t numOfChannels, bool flushToFile)
+{
+
+}
+*/
 
 
 /*
@@ -639,7 +666,7 @@ int main(int argc, char *argv[]){
 		printf("%i ||", i+1);
 		for (int ch = 0; ch < num_ch_SE; ++ch)
 		{
-			printf(" %fV ||", (double)values_SE[ch]/10000/167);
+			printf(" %fV ||", (double)values_SE[ch]/1670000);
 		}
 		printf("\n");
 	}
@@ -655,14 +682,14 @@ int main(int argc, char *argv[]){
 	uint32_t values_DIFF [num_ch_DIFF];
 	uint8_t  posChannels [4] = {AIN0, AIN2, AIN4, AIN6};
 	uint8_t  negChannels [4] = {AIN1, AIN3, AIN5, AIN7};
-
+	
 	start_DIFF = clock();
 	for (int i = 0; i < num_measure_DIFF; ++i){
 		scanDIFFChannels(posChannels, negChannels, num_ch_DIFF, values_DIFF);
 		printf("%i ||", i+1);
 		for (int ch = 0; ch < num_ch_DIFF; ++ch)
 		{
-			printf(" %fV ||", (double)values_DIFF[ch]/10000/167);
+			printf(" %fV ||", (double)values_DIFF[ch]/1670000);
 		}
 		printf("\n");
 	}
@@ -673,13 +700,13 @@ int main(int argc, char *argv[]){
 	/////////////////////////////////////////
 
 	clock_t start_SE_CONT, end_SE_CONT;
-	int num_measure_SE_CONT = atoi(argv[1]);
+	int num_measure_SE_CONT = atoi(argv[1])*30; // 30x measurements because it works with much higher sample rate
 	uint32_t values_SE_CONT [num_measure_SE_CONT];
 	start_SE_CONT = clock();
-	scanSEChannelsContinuous(AIN0, num_measure_SE_CONT, values_SE_CONT);
+	scanSEChannelContinuous(AIN1, num_measure_SE_CONT, values_SE_CONT);
 	end_SE_CONT = clock();
 	for (int i = 0; i < num_measure_SE_CONT; ++i){
-		printf("%i || %fV\n", i+1, (float)values_SE_CONT[i]/167*1e-4);
+		printf("%i || %fV\n", i+1, (float)values_SE_CONT[i]/1670000);
 	}
 
 	/////////////////////////////////////////
@@ -687,13 +714,13 @@ int main(int argc, char *argv[]){
 	/////////////////////////////////////////
 
 	clock_t start_DIFF_CONT, end_DIFF_CONT;
-	int num_measure_DIFF_CONT = atoi(argv[1]);
+	int num_measure_DIFF_CONT = atoi(argv[1])*30; // 30x measurements because it works with much higher sample rate
 	uint32_t values_DIFF_CONT [num_measure_DIFF_CONT];
 	start_DIFF_CONT = clock();
-	scanDIFFChannelsContinuous(AIN0, AIN1, num_measure_DIFF_CONT, values_DIFF_CONT);
+	scanDIFFChannelContinuous(AIN1, AINCOM, num_measure_DIFF_CONT, values_DIFF_CONT);
 	end_DIFF_CONT = clock();
 	for (int i = 0; i < num_measure_DIFF_CONT; ++i){
-		printf("%i || %fV\n", i+1, (float)values_DIFF_CONT[i]/167*1e-4);
+		printf("%i || %fV\n", i+1, (float)values_DIFF_CONT[i]/1670000);
 	}
 
 	printf("Time for %i single-ended measurements on %i channels is %d microseconds (%5.1f SPS/channel).\n", num_measure_SE, num_ch_SE, end_SE - start_SE, (double)(num_measure_SE)/(end_SE - start_SE)*1e6);
