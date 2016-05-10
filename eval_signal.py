@@ -23,8 +23,8 @@ def list_of_arrays(path):
 	for x in range(0, len(newModeLine)-1):
 		arrays.append (np.array(list [newModeLine[x] : newModeLine[x+1]] ))
 
-	return arrays
 	file.close()
+	return arrays
 
 
 def str_to_flts(string):
@@ -74,43 +74,53 @@ def std_dev(array):
 
 def fourier(array):
 	""" Calculate fourier transform of a sample. """
-	return np.fft.fft(array[:,1])
+	val = np.fft.fft(array[:,1])
+	abs_val = [math.sqrt(x) for x in val.real**2 + val.imag**2]
+	return abs_val
+
+def sampling(array):
+	""" Calculate average sampling frequency. """
+	time = array[len(array)-1,2] - array[0,2]
+	samples = len(array)
+	return samples/time*1e6
 
 
-# read file with data
+############################################
+## read file with data + perform cleaning ##
+############################################
+
 #arrays = list_of_arrays('test_file3_5s')
 arrays = list_of_arrays('test_file4')
-print len(arrays)
 for x in xrange(0,len(arrays)):
 	arrays[x] = clean_data(arrays[x])
-#plot_1Mode(arrays)
+plot_1Mode(arrays)
 
+##################################
+## calculate standard deviation ##
+##################################
 
-#calculate standard deviation
+deviation = []
+print "Standard deviation: "
 for arr in arrays:
-	print std_dev(arr)
+	deviation.append(std_dev(arr))
+print deviation
 
+##################################
+## calcualate fourier transform ##
+##################################
 
-#calcualate fourier transform
-ft = []
+ft = []   # fourier transform values
+sps = []  # sampling speed values
+freq = [] # frequency vectors - for plotting
 for i in range(0,len(arrays)):
-	temp = fourier(arrays[i])
-	ft.append(temp)
- 	#ft.append(fourier(arrays[i]))
-i = 0
-for ch in ft:
-	plt.figure(i)
-	plt.plot(ch[1:len(ch)])
+	ft.append(fourier(arrays[i]))
+	sps.append(sampling(arrays[i]))
+	freq.append( sps[i]/len(arrays[i]) * np.linspace(0, len(arrays[i])-1, len(arrays[i])))
+
+# plot amplitude - frequency graph
+for mode, f in zip(ft, freq):
+	plt.figure()
+	plt.plot(f[1:len(f)], mode[1:len(mode)])
 	plt.show()
-	i += 1
-
-#f3 = fourier(arrays[3])
-#plt.plot(f3[1:len(f3)])
-
-#f2 = fourier(arrays[2])
-#plt.plot(f2[1:len(f2)])
-
-#print len(arrays[2])
-#plt.plot(ft[2][1:len(ft[2])])
 
 
