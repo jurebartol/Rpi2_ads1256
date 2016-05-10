@@ -16,6 +16,11 @@ def GetSample(channel):
 	""" Get AD value from analog channel. 
 		Chanels are: A0=0, A1=1, A2=2, A3=3, A4=4, A5=5, A6=6, A7=7. """
 	SetChannel(channel)
+	bsp_delayUS(3)
+	Send8bit(CMD_SYNC)
+	bsp_delayUS(3)
+	Send8bit(CMD_WAKEUP)
+	bsp_delayUS(1)
 	return ReadData()
 
 

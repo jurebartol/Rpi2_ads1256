@@ -62,9 +62,9 @@ RST   = RPI_GPIO_P1_12
 SPICS = RPI_GPIO_P1_15
 
 def CS_1():
-	return bcm2835_gpio_write(SPICS, HIGH)
+	bcm2835_gpio_write(SPICS, HIGH)
 def CS_0():
-	return bcm2835_gpio_write(SPICS, LOW)
+	bcm2835_gpio_write(SPICS, LOW)
 
 def SetChannel(ch):
 	if ch > 7:
@@ -123,7 +123,7 @@ def ADInitialize():
 	bcm2835_spi_begin()
 	bcm2835_spi_setBitOrder(BCM2835_SPI_BIT_ORDER_LSBFIRST)
 	bcm2835_spi_setDataMode(BCM2835_SPI_MODE1)
-	bcm2835_spi_setClockDivider(BCM2835_SPI_CLOCK_DIVIDER_32)
+	bcm2835_spi_setClockDivider(BCM2835_SPI_CLOCK_DIVIDER_256)
 	bcm2835_gpio_fsel(SPICS, BCM2835_GPIO_FSEL_OUTP)
 	bcm2835_gpio_write(SPICS, HIGH)
 	bcm2835_gpio_fsel(DRDY, BCM2835_GPIO_FSEL_INPT)
