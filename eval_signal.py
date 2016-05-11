@@ -1,11 +1,17 @@
+# -*- encoding: utf-8 -*-
+
 import matplotlib.pyplot as plt
 import numpy as np
 import math
 
+# enable čšž
+import sys
+reload(sys)
+sys.setdefaultencoding('utf-8')
+
 
 def list_of_arrays(path):
 	""" Save values from file to an array for each mode. """
-	
 	file = open(path,'r')
 	list = []
 	for line in file:
@@ -90,10 +96,8 @@ for x in xrange(0,len(arrays)):
 ##################################
 
 deviation = []
-print "Standard deviation: "
 for arr in arrays:
 	deviation.append(std_dev(arr))
-print deviation
 
 ##################################
 ## calcualate fourier transform ##
@@ -111,11 +115,11 @@ for i in range(0,len(arrays)):
 ## plot results ##
 ##################
 
-labels = ["Diagram odvisnosti napetosti od casa\n4230 SPS, enostranski nacin merjenja z menjavo kanalov",
-	"Diagram odvisnosti napetosti od casa\n4230 SPS, diferencni nacin merjenja z menjavo kanalov",
-	"Diagram odvisnosti amplitude od frekvence\n30 000 SPS, enostranski kontinuirani nacin merjenja",
-	"Diagram odvisnosti amplitude od frekvence\n30 000 SPS, diferencni kontinuirani nacin merjenja"]
-xlabel1 = "Cas [ms]"
+labels = ["Diagram odvisnosti napetosti od časa\n4230 SPS, enostranski način merjenja z menjavo kanalov",
+	"Diagram odvisnosti napetosti od časa\n4230 SPS, diferenčni način merjenja z menjavo kanalov",
+	"Diagram odvisnosti amplitude od frekvence\n30 000 SPS, enostranski kontinuirani način merjenja",
+	"Diagram odvisnosti amplitude od frekvence\n30 000 SPS, diferenčni kontinuirani način merjenja"]
+xlabel1 = "Čas [ms]"
 xlabel2 = "Frekvenca [Hz]"
 ylabel1 = "Napetost [V]"
 ylabel2 = "Amplituda"
@@ -147,5 +151,4 @@ for mode, f in zip(ft, freq):
 	ax.get_yaxis().get_major_formatter().set_useOffset(False)
 	plt.show()
 	i += 1
-
 
