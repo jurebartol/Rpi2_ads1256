@@ -32,15 +32,6 @@ def str_to_flts(string):
 	return [float(num) for num in string.split()]
 
 
-def plot_1Mode(arrays):
-	""" Plot values from one mode """ #modify for more than one channel
-	for i in range(0,len(arrays)):	
-		plt.figure(i)
-		plt.plot(arrays[i][:,2],arrays[i][:,1])
-		plt.show()
-	return None
-
-
 def clean_data(array):
 	""" Delete data that is completely wrong. """ #modify for more than one channel
 	size = np.size(array[:,0])
@@ -85,6 +76,15 @@ def sampling(array):
 	return samples/time*1e6
 
 
+labels = ["4230 SPS, enostranski nacin merjenja z menjavo kanalov",
+	"4230 SPS, diferencni nacin merjenja z menjavo kanalov",
+	"30 000 SPS, enostranski kontinuirani nacin merjenja",
+	"30 000 SPS, diferencni kontinuirani nacin merjenja"]
+xlabel1 = "Cas [ms]"
+xlabel2 = "Frekvenca [Hz]"
+ylabel1 = "Napetost [V]"
+ylabel2 = "Amplituda"
+
 ############################################
 ## read file with data + perform cleaning ##
 ############################################
@@ -93,7 +93,6 @@ def sampling(array):
 arrays = list_of_arrays('test_file4')
 for x in xrange(0,len(arrays)):
 	arrays[x] = clean_data(arrays[x])
-plot_1Mode(arrays)
 
 ##################################
 ## calculate standard deviation ##
@@ -117,10 +116,33 @@ for i in range(0,len(arrays)):
 	sps.append(sampling(arrays[i]))
 	freq.append( sps[i]/len(arrays[i]) * np.linspace(0, len(arrays[i])-1, len(arrays[i])))
 
-# plot amplitude - frequency graph
-for mode, f in zip(ft, freq):
-	plt.figure()
-	plt.plot(f[1:len(f)], mode[1:len(mode)])
+print sps
+
+# plot volt - time graph
+i = 0
+for arr in arrays:
+	fig = plt.figure()
+	plt.plot(arr[:,1], label = labels[i])
+	fig.suptitle(labels[i])
+	plt.xlabel(xlabel1)
+	plt.ylabel(ylabel1)
+	ax = plt.axes()
+	ax.get_yaxis().get_major_formatter().set_useOffset(False)
 	plt.show()
+	i += 1
+
+# plot amplitude - frequency graph
+i = 0
+for mode, f in zip(ft, freq):
+	fig = plt.figure()
+	plt.plot(f[1:len(f)], mode[1:len(mode)], label = labels[i])
+	fig.suptitle(labels[i])
+	plt.xlabel(xlabel2)
+	plt.ylabel(ylabel2)
+	ax = plt.axes()
+	ax.get_yaxis().get_major_formatter().set_useOffset(False)
+	plt.show()
+	i += 1
+
 
 
