@@ -76,15 +76,6 @@ def sampling(array):
 	return samples/time*1e6
 
 
-labels = ["4230 SPS, enostranski nacin merjenja z menjavo kanalov",
-	"4230 SPS, diferencni nacin merjenja z menjavo kanalov",
-	"30 000 SPS, enostranski kontinuirani nacin merjenja",
-	"30 000 SPS, diferencni kontinuirani nacin merjenja"]
-xlabel1 = "Cas [ms]"
-xlabel2 = "Frekvenca [Hz]"
-ylabel1 = "Napetost [V]"
-ylabel2 = "Amplituda"
-
 ############################################
 ## read file with data + perform cleaning ##
 ############################################
@@ -116,17 +107,29 @@ for i in range(0,len(arrays)):
 	sps.append(sampling(arrays[i]))
 	freq.append( sps[i]/len(arrays[i]) * np.linspace(0, len(arrays[i])-1, len(arrays[i])))
 
-print sps
+##################
+## plot results ##
+##################
+
+labels = ["Diagram odvisnosti napetosti od casa\n4230 SPS, enostranski nacin merjenja z menjavo kanalov",
+	"Diagram odvisnosti napetosti od casa\n4230 SPS, diferencni nacin merjenja z menjavo kanalov",
+	"Diagram odvisnosti amplitude od frekvence\n30 000 SPS, enostranski kontinuirani nacin merjenja",
+	"Diagram odvisnosti amplitude od frekvence\n30 000 SPS, diferencni kontinuirani nacin merjenja"]
+xlabel1 = "Cas [ms]"
+xlabel2 = "Frekvenca [Hz]"
+ylabel1 = "Napetost [V]"
+ylabel2 = "Amplituda"
 
 # plot volt - time graph
 i = 0
 for arr in arrays:
 	fig = plt.figure()
-	plt.plot(arr[:,1], label = labels[i])
+	plt.plot([time*1e-3-100 for time in arr[:,2]], arr[:,1], label = labels[i]) #[time*1e3 for time in arr[:,2]]
 	fig.suptitle(labels[i])
 	plt.xlabel(xlabel1)
 	plt.ylabel(ylabel1)
 	ax = plt.axes()
+	ax.get_xaxis().get_major_formatter().set_useOffset(False)
 	ax.get_yaxis().get_major_formatter().set_useOffset(False)
 	plt.show()
 	i += 1
@@ -140,9 +143,9 @@ for mode, f in zip(ft, freq):
 	plt.xlabel(xlabel2)
 	plt.ylabel(ylabel2)
 	ax = plt.axes()
+	ax.get_xaxis().get_major_formatter().set_useOffset(False)
 	ax.get_yaxis().get_major_formatter().set_useOffset(False)
 	plt.show()
 	i += 1
-
 
 
