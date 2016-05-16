@@ -3,8 +3,10 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import math
+from pylab import *
 
-# enable čšž
+
+# enable čšž etc.
 import sys
 reload(sys)
 sys.setdefaultencoding('utf-8')
@@ -39,22 +41,20 @@ def str_to_flts(string):
 
 
 def clean_data(array):
-	""" Delete data that is completely wrong. """ #modify for more than one channel
+	""" Delete data that is completely wrong. """ # modify for more than one channel
 	size = np.size(array[:,0])
 
 	#calculate average: do not include values that are out of 0 - 5 V range
 	values = array[ array[:,1] < 5]
 	avg = np.average(values[:,1])
 
-	#delete rows that are more than 5uV different from average -> OK since we are measuring static voltage
 	del_row = []
 	row_num = 0
 	for row in array:
-		if abs(row[1] - avg) > 0.005: # modify this
+		if abs(row[1] - avg) > 0.1: # modify this -> it is only usable for static voltages
 			del_row.append(row_num)
 		row_num += 1
 	array = np.delete(array, del_row, 0)
-
 	return array
 
 
@@ -63,10 +63,19 @@ def std_dev(array):
 	vals = array[:,1]
 	avg = np.average(vals)
 	size = len(array[:,1])
-	var = 0 #variance
+	var = 0 
 	for val in vals:
-		var += (val - avg)**2/size
-	return math.sqrt(var)
+		var += (val - avg)**2
+	return math.sqrt(var/size)
+
+def std_dev2(vals):
+	""" Calculate standard deviation of a sample. """
+	avg = np.average(vals)
+	size = len(vals)
+	var = 0 
+	for val in vals:
+		var += (val - avg)**2
+	return math.sqrt(var/size)
 
 
 def fourier(array):
@@ -79,25 +88,78 @@ def sampling(array):
 	""" Calculate average sampling frequency. """
 	time = array[len(array)-1,2] - array[0,2]
 	samples = len(array)
-	return samples/time*1e6
+	return samples/time*1e6      #time in microseconds
+	#return samples/time         #time in seconds
 
+
+def rms_noise(array):
+	""" Calculare RMS of noise. """
+	values = array[:,1]
+	sumSqrs = 0
+	for val in values:
+		sumSqrs += val**2
+	return math.sqrt(float(sumSqrs)/len(values))
+
+def rms_noise_norm(array):
+	""" Calculare normalized RMS of noise. """
+	vals = array[:,1]
+	avg = np.average(vals)
+	vals = vals - avg
+	sumSqrs = 0
+	for val in vals:
+		sumSqrs += val**2
+	return math.sqrt(float(sumSqrs)/len(vals))
+
+def rms_sin(points, peak2peak, offset):
+	""" Calculate RMS of discretisized sine wave. """
+	pts = np.linspace(0, 2*math.pi, points)
+	sin = [(float(peak2peak)/2.0 * math.sin(val) + offset) for val in pts]
+	sumSqrs = 0
+	for val in sin:
+		sumSqrs += val**2
+	return math.sqrt(float(sumSqrs)/len(sin))
+
+def snr_norm(array, peak2peak, offset):
+	""" Calculate SNR of a sine wave with offset and normalized RMS of noise. 
+	Return value is in dB. """
+	rmsNoise = rms_noise_norm(array)
+	rmsSin = math.sqrt(offset**2 + 0.5*((float(peak2peak)/2.0)**2))
+	return 20 * math.log10(float(rmsSin)/float(rmsNoise))
+
+def snr_min(bitWidth):
+	""" Calculate theoretical minimum SNR for sine wave. Return value is in dB. """
+	return 6.02*(bitWidth-1) + 1.76
+
+def snr_variance(array, peak2peak):
+	""" Calculate signal-to-noise ratio for discretisized sine wave.
+	Return value is in dB. """
+	points = np.linspace(0, 2*math.pi, 5000)
+	sin = [float(peak2peak)/2.0 * math.sin(val) for val in points]
+	values = array[:,1]
+	avg_val = np.average(values)
+	values = values - avg_val
+	var_err = (std_dev2(values))**2
+	var_sig = (std_dev2(sin))**2
+	return (10 * math.log10( float(var_sig) / float(var_err) ))
 
 ############################################
 ## read file with data + perform cleaning ##
 ############################################
 
-#arrays = list_of_arrays('test_file3_5s')
-arrays = list_of_arrays('test_file4')
+#arrays = list_of_arrays('test_4230') #ads1256
+
 for x in xrange(0,len(arrays)):
 	arrays[x] = clean_data(arrays[x])
 
-##################################
-## calculate standard deviation ##
-##################################
+##############################################
+## calculate standard deviation and average ##
+##############################################
 
 deviation = []
+average = []
 for arr in arrays:
 	deviation.append(std_dev(arr))
+	average.append(np.average(arr[:,1]))
 
 ##################################
 ## calcualate fourier transform ##
@@ -115,40 +177,44 @@ for i in range(0,len(arrays)):
 ## plot results ##
 ##################
 
-labels = ["Diagram odvisnosti napetosti od časa\n4230 SPS, enostranski način merjenja z menjavo kanalov",
-	"Diagram odvisnosti napetosti od časa\n4230 SPS, diferenčni način merjenja z menjavo kanalov",
-	"Diagram odvisnosti amplitude od frekvence\n30 000 SPS, enostranski kontinuirani način merjenja",
-	"Diagram odvisnosti amplitude od frekvence\n30 000 SPS, diferenčni kontinuirani način merjenja"]
-xlabel1 = "Čas [ms]"
-xlabel2 = "Frekvenca [Hz]"
-ylabel1 = "Napetost [V]"
-ylabel2 = "Amplituda"
+xlabel1 = "Time [ms]"
+xlabel2 = "Frequency [Hz]"
+ylabel1 = "Voltage [mV]"
+ylabel2 = "Noise amplitude"
 
 # plot volt - time graph
 i = 0
+
 for arr in arrays:
-	fig = plt.figure()
-	plt.plot([time*1e-3-100 for time in arr[:,2]], arr[:,1], label = labels[i]) #[time*1e3 for time in arr[:,2]]
-	fig.suptitle(labels[i])
+	fig = plt.figure(figsize=(3.5,3))
+	plt.plot([(time- arr[0,2])*1e-3 for time in arr[:,2]], [(val-average[i])*1e3 for val in arr[:,1]], label = labels[i], linewidth = 0.4)   #time in microseconds
+	#plt.plot([time*1e3-1000 for time in arr[:,2]], [(val-average[i])*1e3 for val in arr[:,1]], label = labels[i], linewidth = 0.4)  #time in seconds
 	plt.xlabel(xlabel1)
 	plt.ylabel(ylabel1)
-	ax = plt.axes()
-	ax.get_xaxis().get_major_formatter().set_useOffset(False)
-	ax.get_yaxis().get_major_formatter().set_useOffset(False)
-	plt.show()
+	plt.grid(True)
+	#fig.savefig("image_%d.png"%(i), dpi=300, format='png', bbox_inches='tight')
 	i += 1
 
 # plot amplitude - frequency graph
 i = 0
+
 for mode, f in zip(ft, freq):
-	fig = plt.figure()
-	plt.plot(f[1:len(f)], mode[1:len(mode)], label = labels[i])
-	fig.suptitle(labels[i])
+	fig = plt.figure(figsize=(3.5,3))
+	plt.plot(f[1:len(f)], [val*1e-6 for val in mode[1:len(mode)]], label = labels[i], linewidth = 0.4) #time in microseconds
+	#plt.plot(f[1:len(f)], mode[1:len(mode)], label = labels[i], linewidth = 0.4) #time in seconds
 	plt.xlabel(xlabel2)
 	plt.ylabel(ylabel2)
-	ax = plt.axes()
-	ax.get_xaxis().get_major_formatter().set_useOffset(False)
-	ax.get_yaxis().get_major_formatter().set_useOffset(False)
-	plt.show()
+	#fig.savefig("image_%d.png"%(i), dpi=300, format='png', bbox_inches='tight')
 	i += 1
+plt.show()
 
+
+print "\nDeviation: " # unit: V
+for x in deviation: print x
+
+print "\nSNR: "
+for arr in arrays:
+	print snr_norm(arr, 5, 2.5)
+
+
+print "Theoretical minimum SNR of a 24 bit AD converter: %3.2f" % (snr_min(24))
