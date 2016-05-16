@@ -146,7 +146,7 @@ def snr_variance(array, peak2peak):
 ## read file with data + perform cleaning ##
 ############################################
 
-#arrays = list_of_arrays('test_4230') #ads1256
+arrays = list_of_arrays('test_4230') #ads1256
 
 for x in xrange(0,len(arrays)):
 	arrays[x] = clean_data(arrays[x])
